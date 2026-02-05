@@ -1,0 +1,10 @@
+data/
+*.xls
+*.xlsx
+*.html
+*.csv
+data_raw_*.html
+data_raw_*.htm
+*.log
+__pycache__/
+.streamlit/
