@@ -1,0 +1,355 @@
+<html>
+<head>
+<script language="javascript">
+function submete() {
+ document.FORM_3.method="POST";
+ document.FORM_3.action="internet_fnde.liberacoes_result_pc";
+ document.FORM_3.submit();
+}
+function disparaJanela() {
+ if (document.FORM_3.p_ano.options[document.FORM_3.p_ano.selectedIndex].value == '2004') {
+   alert("As liberações de Recursos referentes a 2004 não estão disponíveis.\nOpção em manutenção.")
+   document.FORM_3.buscar.disabled = true;
+   return false;
+ } else {
+   document.FORM_3.buscar.disabled = false;
+ }
+}
+function limpar() {
+   document.FORM_3.buscar.disabled = false
+   document.FORM_3.reset();
+ }
+</script>
+<title>LIBERAÇÕES - CONSULTAS GERAIS</title>
+<script language="javascript">
+function abrir_municipio(obj) {
+  Escolha = obj.selectedIndex
+  if (obj.options[Escolha].value == "") {
+    return
+  }
+  window.location.href="internet_fnde.LIBERACOES_01_PC?p_ano="+document.FORM_3.p_ano.options[document.FORM_3.p_ano.selectedIndex].value+"&p_programa="+document.FORM_3.p_programa.options[document.FORM_3.p_programa.selectedIndex].value+"&p_uf="+document.FORM_3.p_uf.options[document.FORM_3.p_uf.selectedIndex].value+"&p_municipio="+document.FORM_3.p_municipio.options[document.FORM_3.p_municipio.selectedIndex].value
+}
+</script>
+<style type="text/css">
+<!--
+.fundo_laranja {BACKGROUND-COLOR: #f1db9f }
+.pagina_titulo {
+	FONT-WEIGHT: bold;
+	FONT-SIZE: 12px;
+	TEXT-TRANSFORM: uppercase;
+	COLOR: #ffffff;
+	FONT-STYLE: normal;
+	FONT-FAMILY: Verdana, Arial, Helvetica, sans-serif;
+	BACKGROUND-COLOR: #000099;
+}
+.cabecalho_letras {
+	FONT-WEIGHT: bold;
+	FONT-SIZE: 12px;
+	COLOR: #09548d;
+	FONT-FAMILY: Verdana,Tahoma,Arial,Helvetica,MS Sans Serif; TEXT-DECORATION: none
+}
+-->
+    </style>
+</head>
+<body bgcolor="#FFFFFF" leftmargin="0" topmargin="0">
+<center>
+<TABLE class="fundo_laranja" cellSpacing="0" cellPadding="1" width="100%" border="0">
+  <TR>
+    <TD vAlign="center" noWrap rowSpan="2">
+    	<img src="http://www.fnde.gov.br/pnld/imagens/logo_fnde.gif" height="35" width="97">
+    </TD>
+    <TD vAlign="center" noWrap rowSpan="2">&nbsp; </TD>
+    <TD vAlign="center" noWrap align="right" width="100%">&nbsp;</TD>
+    <TD vAlign="center" noWrap rowSpan="2">&nbsp;</TD>
+    <TD vAlign="center" noWrap rowSpan="2">
+    	<img src="http://www.fnde.gov.br/pnld/imagens/logo_mec_descricao.gif" height="42" width="97" align="absMiddle">
+    </TD>
+  </TR>
+  <TR>
+    <TD class="cabecalho_letras" vAlign="middle" noWrap align="left" width="100%">
+    		Fundo Nacional de<BR>Desenvolvimento da Educação
+    </TD>
+  </TR>
+</TABLE>
+<TABLE cellSpacing="0" cellPadding="3" width="100%" border="0">
+  <TR>
+    <TD width="100%" align="center" class="pagina_titulo">
+      :: LIBERAÇÕES - CONSULTAS GERAIS ::
+    </TD>
+  </TR>
+</TABLE>
+&nbsp;<br>
+<table border="1">
+<tr>
+  <td>
+    <form name="FORM_3" method="post" action="internet_fnde.liberacoes_03_pc">
+      <table border="1" cellspacing="0" cellpadding="0" width="100%">
+        <tr bgcolor="#006699" >
+          <td align="center" width="100%" colspan="2">
+            <font face="Tahoma,Arial" size="2" color="#FFFFFF">
+              <center>&nbsp;<b>LIBERA&Ccedil;&Otilde;ES</b>&nbsp;</center>
+            </font>
+          </td>
+        </tr>
+      </table>
+      <table border="0" width="100%" cellspacing="0" cellpadding="2">
+        <tr>
+          <td align="right">
+            <font face="Tahoma,Arial" size="2">
+              <b>Exerc&iacute;cio:&nbsp;&nbsp;</b>
+            </font>
+          </td>
+          <td align="left">
+            <font face="Tahoma,Arial" size="2">
+              <select name="p_ano" onChange="abrir_municipio(this);">
+            <option value="2026">2026</option>
+            <option value="2025" SELECTED>2025</option>
+            <option value="2024">2024</option>
+            <option value="2023">2023</option>
+            <option value="2022">2022</option>
+            <option value="2021">2021</option>
+            <option value="2020">2020</option>
+            <option value="2019">2019</option>
+            <option value="2018">2018</option>
+            <option value="2017">2017</option>
+            <option value="2016">2016</option>
+            <option value="2015">2015</option>
+            <option value="2014">2014</option>
+            <option value="2013">2013</option>
+            <option value="2012">2012</option>
+            <option value="2011">2011</option>
+            <option value="2010">2010</option>
+            <option value="2009">2009</option>
+            <option value="2008">2008</option>
+            <option value="2007">2007</option>
+            <option value="2006">2006</option>
+            <option value="2005">2005</option>
+            <option value="2004">2004</option>
+            <option value="2003">2003</option>
+            <option value="2002">2002</option>
+            <option value="2001">2001</option>
+            <option value="2000">2000</option>
+              </select>
+            </font>
+          </td>
+        </tr>
+        <tr>
+          <td align="right">
+            <font face="Tahoma,Arial" size="2">
+              <b>Programa:&nbsp;&nbsp;</b>
+            </font>
+          </td>
+          <td align="left">
+            <font face="Tahoma,Arial" size="2">
+              <input type="hidden" name="p_verifica" value="sigef"/>
+              <select name="p_programa">
+             <option value="" SELECTED>Todos os Programas</option>
+           <option value="0B"> ENSINO MÉDIO INOVADOR, MAIS CULTURA, ESC.DE FRONT (PDDE QUALIDADE)</option>
+           <option value="86"> FUNDEB                                            (FUNDEB)</option>
+           <option value="G9">ADMINISTRAÇÃO DA UNIDADE E GESTÃO DE PROGRAMAS     (ADMINISTRAÇÃO )</option>
+           <option value="0A">ÁGUA E ESGOTAMENTO SANITÁRIO, ESCOLA DO CAMPO, ESC (PDDE EQUIDADE)</option>
+           <option value="0L">BOLSA-FORMAÇÃO  PRONASCI JUVENTUDE                (PRONATEC  PRONASCI)</option>
+           <option value="91">BOLSAS                                             (BOLSAS)</option>
+           <option value="PS">BOLSAS PROGRAMA  DE EDUCAÇÃO TUTORIAL              (BOLSAS PET)</option>
+           <option value="88">BRASIL ALFABETIZADO - BOLSAS                       (BRALFBOLSAS)</option>
+           <option value="CV">EI - NOVAS TURMAS - MANUTENÇÃO DA EDUCAÇÃO INFANTI (EDUCAÇÃO INFANTIL - NOVAS TURMAS)</option>
+           <option value="CT">EI - NOVOS ESTABELECIMENTOS - MANUTENÇÃO DA EDUCAÇ (EDUCAÇÃO INFANTIL - NOVOS ESTABELECIMENTOS)</option>
+           <option value="0N">FOMENTO À IMPLEMENTAÇÃO DO ITINERÁRIO DA FORMAÇÃO  (PRONATEC  NOVO ENSINO MÉDIO)</option>
+           <option value="0I">OFERTA DE VAGAS - REDE ESTADUAL/MUNICIPAL, POR PAC (PRONATEC MULHERES MIL TRANSF. ESTADO/MUNICÍP.)</option>
+           <option value="CM">PLANO DE AÇÃO ARTICULADA  - TRANSFERÊNCIA DIRETA   (PAR - TD)</option>
+           <option value="C7">PROG.NACIONAL DE ALIMENTAÇÃO ESCOLAR               (ALIMENTAÇÃO ESCOLAR)</option>
+           <option value="AK">PROGRAM DE APOIO A PESQUISA - PAPES                (PAPES)</option>
+           <option value="ZN">PROGRAMA AUXÍLIO AVALIAÇÃO EDUCACIONAL             (AAE)</option>
+           <option value="EV">PROGRAMA BOLSA PERMANÊNCIA                         (BOLSA PERMANÊNCIA)</option>
+           <option value="CN">PROGRAMA DE CONSTRUÇÃO DE QUADRAS POLIESPORTIVAS   (QUADRAS)</option>
+           <option value="0Q">PROGRAMA DE FORMAÇÃO INICIAL DE PROFISSIONAIS DA E (PRONATEC - PROFUNCIONÁRIO)</option>
+           <option value="03">PROGRAMA DE TRABALHO ANUAL                         (PTA)</option>
+           <option value="02">PROGRAMA DINHEIRO DIRETO NA ESCOLA                 (PDDE)</option>
+           <option value="A3">PROGRAMA DINHEIRO DIRETO NA ESCOLA-EDUCAÇÃO ESPECI (PDDE-EDUCAÇÃO ESPECIAL)</option>
+           <option value="D8">PROGRAMA NACIONAL DE APOIO AO TRANSP DO ESCOLAR    (PNATE)</option>
+           <option value="01">PROGRAMA NACIONAL DO LIVRO DIDÁTICO                (PNLD )</option>
+           <option value="BW">PROGRAMA PROINFÂNCIA - CONSTRUÇÃO DE CRECHES       (PROINFÂNCIA - CRECHES)</option>
+           <option value="EF">PRONATEC - TD                                      (PRONATEC - TD)</option>
+           <option value="51">QUOTA ESTADUAL / MUNICIPAL                         (QUOTA)</option>
+           <option value="TI">TRANSF DIRETA - APOIAR A AMPLIAÇÃO DA OFERTA DE ED (FOMENTO A ESCOLAS EM TEMPO INTEGRAL)</option>
+           <option value="32">TRANSFERÊNCIA A ESTADO E MUNICIPIOS PBA  - TD      (TRANSFERÊNCIA A ESTADO E MUNICIPIOS PBA )</option>
+              </select>
+            </font>
+          </td>
+        </tr>
+      </table>
+  </td>
+</tr>
+<tr>
+  <td>
+      <table border="0" width="100%" cellspacing="0" cellpadding="2">
+        <tr>
+          <td align="right">
+            <font face="Tahoma,Arial" size="2">
+              <b>CGC/CNPJ:&nbsp;&nbsp;</b>
+            </font>
+          </td>
+          <td align="left">
+            <font face="Tahoma,Arial" size="2">
+              <input type="text" name="p_cgc" size="18" maxlength="18">
+            </font>
+          </td>
+        </tr>
+        <tr>
+          <td colspan="2" align="center">
+            <font face="Tahoma,Arial" size="2">
+              <b>OU</b>
+            </font>
+          </td>
+        </tr>
+        <tr>
+          <td align="right">
+            <font face="Tahoma,Arial" size="2">
+              <b>UF:&nbsp;&nbsp;</b>
+            </font>
+          </td>
+          <td align="left">
+            <font face="Tahoma,Arial" size="2">
+              <select name="p_uf" onChange="abrir_municipio(this);">
+           <option value="AC" >Acre</option>
+           <option value="AL" >Alagoas</option>
+           <option value="AM" SELECTED>Amazonas</option>
+           <option value="AP" >Amapá</option>
+           <option value="BA" >Bahia</option>
+           <option value="CE" >Ceará</option>
+           <option value="DF" >Distrito Federal</option>
+           <option value="ES" >Espírito Santo</option>
+           <option value="GO" >Goiás</option>
+           <option value="MA" >Maranhão</option>
+           <option value="MG" >Minas Gerais</option>
+           <option value="MS" >Mato Grosso do Sul</option>
+           <option value="MT" >Mato Grosso</option>
+           <option value="PA" >Pará</option>
+           <option value="PB" >Paraíba</option>
+           <option value="PE" >Pernambuco</option>
+           <option value="PI" >Piauí</option>
+           <option value="PR" >Paraná</option>
+           <option value="RJ" >Rio de Janeiro</option>
+           <option value="RN" >Rio Grande do Norte</option>
+           <option value="RO" >Rondônia</option>
+           <option value="RR" >Roraima</option>
+           <option value="RS" >Rio Grande do Sul</option>
+           <option value="SC" >Santa Catarina</option>
+           <option value="SE" >Sergipe</option>
+           <option value="SP" >São Paulo</option>
+           <option value="TO" >Tocantins</option>
+              </select>
+            </font>
+          </td>
+        </tr>
+        <tr>
+          <td align="right">
+            <font face="Tahoma,Arial" size="2">
+              <b>Munic&iacute;pio:&nbsp;&nbsp;</b>
+            </font>
+          </td>
+          <td align="left">
+            <font face="Tahoma,Arial" size="2">
+              <select name="p_municipio">
+           <option value="130002" >ALVARAES</option>
+           <option value="130006" >AMATURA</option>
+           <option value="130008" >ANAMA</option>
+           <option value="130010" >ANORI</option>
+           <option value="130014" >APUI</option>
+           <option value="130020" >ATALAIA DO NORTE</option>
+           <option value="130030" >AUTAZES</option>
+           <option value="130040" >BARCELOS</option>
+           <option value="130050" >BARREIRINHA</option>
+           <option value="130060" >BENJAMIN CONSTANT</option>
+           <option value="130063" >BERURI</option>
+           <option value="130068" >BOA VISTA DO RAMOS</option>
+           <option value="130070" >BOCA DO ACRE</option>
+           <option value="130080" >BORBA</option>
+           <option value="130083" >CAAPIRANGA</option>
+           <option value="130090" >CANUTAMA</option>
+           <option value="130100" >CARAUARI</option>
+           <option value="130110" >CAREIRO</option>
+           <option value="130115" >CAREIRO DA VARZEA</option>
+           <option value="130120" >COARI</option>
+           <option value="130130" >CODAJAS</option>
+           <option value="130140" >EIRUNEPE</option>
+           <option value="130150" >ENVIRA</option>
+           <option value="130160" >FONTE BOA</option>
+           <option value="130165" >GUAJARA</option>
+           <option value="130170" >HUMAITA</option>
+           <option value="130180" >IPIXUNA</option>
+           <option value="130185" >IRANDUBA</option>
+           <option value="130190" >ITACOATIARA</option>
+           <option value="130195" >ITAMARATI</option>
+           <option value="130200" >ITAPIRANGA</option>
+           <option value="130210" >JAPURA</option>
+           <option value="130220" >JURUA</option>
+           <option value="130230" >JUTAI</option>
+           <option value="130240" >LABREA</option>
+           <option value="130250" >MANACAPURU</option>
+           <option value="130255" >MANAQUIRI</option>
+           <option value="130260" >MANAUS</option>
+           <option value="130270" >MANICORE</option>
+           <option value="130280" >MARAA</option>
+           <option value="130290" >MAUES</option>
+           <option value="130300" >NHAMUNDA</option>
+           <option value="130310" >NOVA OLINDA DO NORTE</option>
+           <option value="130320" >NOVO AIRAO</option>
+           <option value="130330" >NOVO ARIPUANA</option>
+           <option value="130340" >PARINTINS</option>
+           <option value="130350" >PAUINI</option>
+           <option value="130353" >PRESIDENTE FIGUEIREDO</option>
+           <option value="130356" >RIO PRETO DA EVA</option>
+           <option value="130360" >SANTA ISABEL DO RIO NEGRO</option>
+           <option value="130370" >SANTO ANTONIO DO ICA</option>
+           <option value="130380" >SAO GABRIEL DA CACHOEIRA</option>
+           <option value="130390" >SAO PAULO DE OLIVENCA</option>
+           <option value="130395" >SAO SEBASTIAO DO UATUMA</option>
+           <option value="130400" >SILVES</option>
+           <option value="130406" >TABATINGA</option>
+           <option value="130410" >TAPAUA</option>
+           <option value="130420" >TEFE</option>
+           <option value="130423" >TONANTINS</option>
+           <option value="130426" >UARINI</option>
+           <option value="130430" >URUCARA</option>
+           <option value="130440" >URUCURITUBA</option>
+              </select>
+            </font>
+          </td>
+        </tr>
+        <tr>
+          <td align="right">
+            <font face="Tahoma,Arial" size="2">
+              <b>Tipo de Entidade:&nbsp;&nbsp;</b>
+            </font>
+          </td>
+          <td align="left">
+            <font face="Tahoma,Arial" size="2">
+              <select name="p_tp_entidade">
+             <option value="" SELECTED></option>
+           <option value="07" >EMPRESA</option>
+           <option value="06" >ESCOLA PARTICULAR DO CENSO</option>
+           <option value="04" >ESCOLA PUBLICA DO CENSO</option>
+           <option value="05" >ORGANIZACAO NAO GOVERNAMENTAL</option>
+           <option value="03" >ORGAO ESTADUAL</option>
+           <option value="02" >PREFEITURA</option>
+           <option value="10" >SECRETARIA ESTADUAL DE EDUCACAO</option>
+              </select>
+            </font>
+          </td>
+        </tr>
+      </table>
+  </td>
+</tr>
+<tr>
+  <td align="center" colspan="2">
+    <input type="button" name="buscar" value="Buscar" onClick="submete();">
+    <input type="button" value="Limpar" onClick="limpar();">
+  </td>
+</tr>
+</form>
+</table>
+</center>
+</body>
+</html>
+                                                                                                                                
