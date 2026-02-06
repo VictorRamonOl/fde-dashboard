@@ -3,6 +3,7 @@
 
 import re
 import time
+import hashlib
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from io import StringIO
@@ -73,15 +74,19 @@ OK_HINTS = [
     r"\bsem\s+pend[eê]ncia\b",
 ]
 
+
 def ensure_dirs() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
+
 
 def only_digits(s: str) -> str:
     return re.sub(r"\D+", "", s or "")
 
+
 def format_cnpj_14(digits14: str) -> str:
     d = only_digits(digits14).zfill(14)
     return f"{d[0:2]}.{d[2:5]}.{d[5:8]}/{d[8:12]}-{d[12:14]}"
+
 
 def clean_text(v: str) -> str:
     """Remove quebras e espaços ruins para não quebrar CSV."""
@@ -92,6 +97,7 @@ def clean_text(v: str) -> str:
     s = s.replace("\xa0", " ")
     s = re.sub(r"\s+", " ", s).strip()
     return s
+
 
 def brl_to_float(v: str) -> Optional[float]:
     """Converte '3.275,00' -> 3275.00"""
@@ -106,6 +112,7 @@ def brl_to_float(v: str) -> Optional[float]:
         return float(s)
     except ValueError:
         return None
+
 
 def parse_br_date(s: str) -> Optional[pd.Timestamp]:
     """
@@ -146,10 +153,12 @@ def parse_br_date(s: str) -> Optional[pd.Timestamp]:
     except Exception:
         return None
 
+
 def safe_get(url: str, params: dict) -> requests.Response:
     r = requests.get(url, params=params, headers=HEADERS, timeout=TIMEOUT)
     r.raise_for_status()
     return r
+
 
 def pick_main_table(html: str) -> Optional[pd.DataFrame]:
     """
@@ -165,6 +174,102 @@ def pick_main_table(html: str) -> Optional[pd.DataFrame]:
         if any("Data Pgto" in x for x in flat):
             return t
     return None
+
+
+# =========================
+# DEDUPE / NORMALIZAÇÃO DE PROGRAMA
+# =========================
+def _is_only_number(s: str) -> bool:
+    s = clean_text(s)
+    return bool(re.fullmatch(r"\d+", s))
+
+
+def _is_bad_program_group(title: str) -> bool:
+    """
+    Evita capturar '1', '2', 'BANCO DO BRASIL', etc como nome de programa/grupo.
+    """
+    t = clean_text(title)
+    if not t:
+        return True
+    if _is_only_number(t):
+        return True
+    if t.upper() in {"BANCO DO BRASIL"}:
+        return True
+    if t.upper() in {"(VAZIO)", "VAZIO"}:
+        return True
+    return False
+
+
+def normalize_programa_parcela(programa: str, parcela: str, program_group: str) -> Tuple[str, str]:
+    """
+    Regra:
+    - Se 'programa' vier vazio ou igual à 'parcela', usa program_group.
+    - Se 'programa' for só número (ex: '1','2','3'), trata como parcela e usa program_group como programa.
+    """
+    programa = clean_text(programa)
+    parcela = clean_text(parcela)
+    program_group = clean_text(program_group)
+
+    # Se "Programa" veio numérico, isso quase sempre é a parcela
+    if _is_only_number(programa):
+        if not parcela:
+            parcela = programa
+        programa = ""
+
+    # Se programa está vazio ou igual à parcela, usa o nome do bloco
+    if (not programa) or (programa == parcela):
+        if program_group and not _is_bad_program_group(program_group):
+            programa = program_group
+
+    return programa, parcela
+
+
+def make_payment_id(row: dict) -> str:
+    """
+    ID estável de pagamento. Usa campos que definem unicidade prática.
+    """
+    key = "|".join([
+        str(row.get("UF", "")),
+        str(row.get("MunicipioID", "")),
+        str(row.get("Ano", "")),
+        str(row.get("CNPJ", "")),
+        str(row.get("DataPgto", "")),
+        str(row.get("OB", "")),
+        f"{float(row.get('Valor_num', 0.0)):.2f}",
+        str(row.get("Conta", "")),
+        str(row.get("Agencia", "")),
+        str(row.get("Banco", "")),
+    ])
+    return hashlib.md5(key.encode("utf-8")).hexdigest()
+
+
+def dedupe_and_flag_conflicts(df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    - Remove duplicatas EXATAS (mesma chave + mesmo valor etc).
+    - Marca conflitos: mesma chave "lógica" (CNPJ+Data+OB+Conta) com valores diferentes.
+    """
+    if df.empty:
+        return df, pd.DataFrame()
+
+    df = df.copy()
+
+    # 1) remove duplicatas exatas pelo PaymentID
+    df["PaymentID"] = df.apply(lambda r: make_payment_id(r.to_dict()), axis=1)
+    df = df.drop_duplicates(subset=["PaymentID"], keep="first").copy()
+
+    # 2) conflitos: mesma OB no mesmo dia/conta/CNPJ mas valores diferentes
+    conflict_key = ["UF", "MunicipioID", "Ano", "CNPJ", "DataPgto", "OB", "Conta", "Agencia", "Banco"]
+    g = df.groupby(conflict_key, dropna=False)["Valor_num"].nunique().reset_index(name="n_valores")
+    conflicts_keys = g[g["n_valores"] > 1]
+
+    if conflicts_keys.empty:
+        return df, pd.DataFrame()
+
+    df_conf = (
+        df.merge(conflicts_keys[conflict_key], on=conflict_key, how="inner")
+          .sort_values(conflict_key + ["Valor_num"])
+    )
+    return df, df_conf
 
 
 # =========================
@@ -280,12 +385,15 @@ def extract_pagamentos_for_cnpj(
             current_cols = cells[:]  # cabeçalho do bloco
             continue
 
+        # linha de "título" do bloco (nome do programa/grupo)
         if not current_cols:
             uniq = []
             for c in cells_clean:
                 if c not in uniq:
                     uniq.append(c)
-            current_program_group = clean_text(" ".join(uniq))
+            candidate = clean_text(" ".join(uniq))
+            if not _is_bad_program_group(candidate):
+                current_program_group = candidate
             continue
 
         rec = {}
@@ -297,12 +405,13 @@ def extract_pagamentos_for_cnpj(
 
         data_pgto = rec.get("Data Pgto", "")
         if not data_pgto:
+            # às vezes o site joga o título no meio — atualiza program_group se for válido
             uniq = []
             for c in cells_clean:
                 if c not in uniq:
                     uniq.append(c)
             maybe_title = clean_text(" ".join(uniq))
-            if len(maybe_title) > 12 and "BANCO" not in maybe_title.upper():
+            if (len(maybe_title) > 12) and ("BANCO" not in maybe_title.upper()) and (not _is_bad_program_group(maybe_title)):
                 current_program_group = maybe_title
             continue
 
@@ -312,7 +421,9 @@ def extract_pagamentos_for_cnpj(
 
         ob = clean_text(rec.get("OB", ""))
         parcela = clean_text(rec.get("Parcela", ""))
-        programa = clean_text(rec.get("Programa", "")) or parcela
+        programa_raw = clean_text(rec.get("Programa", ""))  # às vezes vem "1"
+        programa, parcela = normalize_programa_parcela(programa_raw, parcela, current_program_group)
+
         banco = clean_text(rec.get("Banco", ""))
         agencia = clean_text(rec.get("Agência", "")) or clean_text(rec.get("Agencia", ""))
         conta = clean_text(rec.get("C/C", "")) or clean_text(rec.get("CC", ""))
@@ -378,9 +489,11 @@ def _normalize_colname(c: str) -> str:
     c = re.sub(r"[^a-z0-9]+", "_", c).strip("_")
     return c
 
+
 def _looks_like_html_bytes(b: bytes) -> bool:
     head = b[:4000].lower()
     return (b"<html" in head) or (b"<!doctype html" in head) or (b"<table" in head)
+
 
 def _read_pddeinfo_file(path: Path) -> Optional[pd.DataFrame]:
     """
@@ -435,6 +548,7 @@ def _read_pddeinfo_file(path: Path) -> Optional[pd.DataFrame]:
     except Exception:
         return None
 
+
 def _find_pddeinfo_file(ano: int, municipio_nome: str) -> Optional[Path]:
     """
     Procura arquivo PDDE Info em data/ aceitando variações de extensão e nome.
@@ -469,6 +583,7 @@ def _find_pddeinfo_file(ano: int, municipio_nome: str) -> Optional[Path]:
 
     return uniq[0] if uniq else None
 
+
 def _classify_status(text: str) -> str:
     """
     Classifica texto em OK / PENDENTE / DESCONHECIDO.
@@ -489,6 +604,7 @@ def _classify_status(text: str) -> str:
             return "PENDENTE"
 
     return "DESCONHECIDO"
+
 
 def build_regularizacao_from_pddeinfo(ano: int, municipio_nome: str) -> pd.DataFrame:
     """
@@ -628,6 +744,10 @@ def run_for_municipio_ano(
         time.sleep(SLEEP_BETWEEN_REQUESTS)
 
     df_tidy = pd.concat(all_pay, ignore_index=True) if all_pay else pd.DataFrame()
+
+    # DEDUPE seguro + conflitos
+    df_tidy, df_conf = dedupe_and_flag_conflicts(df_tidy)
+
     df_resumo = build_resumo(df_tidy)
 
     # 3) SALVAR POR MUNICIPIO+ANO
@@ -636,6 +756,12 @@ def run_for_municipio_ano(
 
     df_tidy.to_csv(tidy_out, index=False, encoding="utf-8-sig")
     df_resumo.to_csv(resumo_out, index=False, encoding="utf-8-sig")
+
+    # salva conflitos (se existirem) para auditoria
+    if not df_conf.empty:
+        conf_out = DATA_DIR / f"liberacoes_conflitos_AM_{ano}_{municipio_nome}.csv"
+        df_conf.to_csv(conf_out, index=False, encoding="utf-8-sig")
+        print(f"⚠️ Conflitos (mesma OB com valores diferentes) salvos: {conf_out} | linhas: {len(df_conf)}")
 
     print(f"✅ CSV TIDY salvo: {tidy_out} | linhas: {len(df_tidy)}")
     print(f"✅ CSV RESUMO salvo: {resumo_out} | linhas: {len(df_resumo)}")

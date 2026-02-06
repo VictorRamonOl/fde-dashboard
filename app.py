@@ -83,6 +83,80 @@ def normalize_municipio_key(raw: str) -> str:
     return s
 
 
+def enforce_schema(df: pd.DataFrame, year: int) -> pd.DataFrame:
+    """
+    Garante que df sempre tenha as colunas necessárias (MunicipioKey, MunicipioLabel, Valor_num, Ano, etc.)
+    mesmo que o CSV venha com colunas diferentes ou faltando.
+    """
+    if df is None or df.empty:
+        return pd.DataFrame()
+
+    out = df.copy()
+
+    # Normaliza possíveis nomes de Município
+    if "Municipio" not in out.columns:
+        for cand in ["Município", "MUNICIPIO", "MUNICÍPIO"]:
+            if cand in out.columns:
+                out["Municipio"] = out[cand]
+                break
+    if "Municipio" not in out.columns:
+        out["Municipio"] = ""
+
+    # Ano
+    if "Ano" not in out.columns:
+        out["Ano"] = year
+    out["Ano"] = pd.to_numeric(out["Ano"], errors="coerce").fillna(year).astype(int)
+
+    # Valor_num
+    if "Valor_num" in out.columns:
+        out["Valor_num"] = pd.to_numeric(out["Valor_num"], errors="coerce").fillna(0.0)
+    else:
+        if "Valor_str" in out.columns:
+            s = (
+                out["Valor_str"].astype(str)
+                .str.replace(".", "", regex=False)
+                .str.replace(",", ".", regex=False)
+            )
+            out["Valor_num"] = pd.to_numeric(s, errors="coerce").fillna(0.0)
+        else:
+            out["Valor_num"] = 0.0
+
+    # MunicipioKey / Label
+    out["Municipio_raw"] = out["Municipio"].astype(str)
+    out["MunicipioKey"] = out["Municipio_raw"].apply(normalize_municipio_key)
+    out["MunicipioLabel"] = out["MunicipioKey"].map(MUN_LABEL).fillna(out["Municipio_raw"])
+
+    # Campos opcionais usados no dashboard
+    needed_cols = [
+        "ProgramaGrupo", "Programa", "RazaoSocial", "CNPJ", "CNPJ_formatado",
+        "OB", "Parcela", "Mes", "DataPgto"
+    ]
+    for c in needed_cols:
+        if c not in out.columns:
+            out[c] = ""
+
+    # Mes / DataPgto / Mes_dt
+    if "Mes" in out.columns:
+        out["Mes"] = out["Mes"].astype(str).str.slice(0, 7)
+
+    if "DataPgto" in out.columns:
+        out["DataPgto"] = pd.to_datetime(out["DataPgto"], errors="coerce")
+        need = out["Mes"].isna() | (out["Mes"].astype(str).str.strip() == "") | (out["Mes"].astype(str) == "NaT")
+        if need.any():
+            out.loc[need, "Mes"] = out.loc[need, "DataPgto"].dt.strftime("%Y-%m")
+    else:
+        out["DataPgto"] = pd.NaT
+
+    out["Mes_dt"] = pd.to_datetime(out["Mes"].astype(str) + "-01", errors="coerce")
+
+    # limpeza leve
+    out["ProgramaGrupo"] = out["ProgramaGrupo"].fillna("").astype(str)
+    out["Programa"] = out["Programa"].fillna("").astype(str)
+    out["RazaoSocial"] = out["RazaoSocial"].fillna("").astype(str)
+
+    return out
+
+
 # =========================================================
 # FILE DISCOVERY
 # =========================================================
@@ -125,65 +199,8 @@ def load_tidy_year(data_dir: Path, year: int) -> pd.DataFrame:
     if df.empty:
         return df
 
-    # Valor_num -> float
-    if "Valor_num" in df.columns:
-        df["Valor_num"] = pd.to_numeric(df["Valor_num"], errors="coerce").fillna(0.0)
-    else:
-        if "Valor_str" in df.columns:
-            s = (
-                df["Valor_str"]
-                .astype(str)
-                .str.replace(".", "", regex=False)
-                .str.replace(",", ".", regex=False)
-            )
-            df["Valor_num"] = pd.to_numeric(s, errors="coerce").fillna(0.0)
-        else:
-            df["Valor_num"] = 0.0
-
-    # Ano
-    if "Ano" in df.columns:
-        df["Ano"] = pd.to_numeric(df["Ano"], errors="coerce").fillna(year).astype(int)
-    else:
-        df["Ano"] = year
-
-    # Municipio
-    if "Municipio" not in df.columns:
-        df["Municipio"] = ""
-    df["Municipio_raw"] = df["Municipio"].astype(str)
-    df["MunicipioKey"] = df["Municipio_raw"].apply(normalize_municipio_key)
-    df["MunicipioLabel"] = df["MunicipioKey"].map(MUN_LABEL).fillna(df["Municipio_raw"])
-
-    # ProgramaGrupo / Programa / RazaoSocial
-    for col in ["ProgramaGrupo", "Programa", "RazaoSocial", "CNPJ", "CNPJ_formatado", "OB", "Parcela"]:
-        if col not in df.columns:
-            df[col] = ""
-
-    # DataPgto e Mês
-    # teu csv já tem Mes (YYYY-MM). Vamos forçar.
-    if "Mes" in df.columns:
-        df["Mes"] = df["Mes"].astype(str)
-        # normalizar possíveis strings estranhas
-        df["Mes"] = df["Mes"].str.slice(0, 7)
-    else:
-        df["Mes"] = ""
-
-    # Se Mes veio vazio, tenta derivar de DataPgto
-    if "DataPgto" in df.columns:
-        df["DataPgto"] = pd.to_datetime(df["DataPgto"], errors="coerce")
-        need = df["Mes"].isna() | (df["Mes"].astype(str).str.strip() == "") | (df["Mes"].astype(str) == "NaT")
-        if need.any():
-            df.loc[need, "Mes"] = df.loc[need, "DataPgto"].dt.strftime("%Y-%m")
-    else:
-        df["DataPgto"] = pd.NaT
-
-    # Mes_dt para ordenar (primeiro dia do mês)
-    df["Mes_dt"] = pd.to_datetime(df["Mes"] + "-01", errors="coerce")
-
-    # limpeza leve
-    df["ProgramaGrupo"] = df["ProgramaGrupo"].fillna("").astype(str)
-    df["Programa"] = df["Programa"].fillna("").astype(str)
-    df["RazaoSocial"] = df["RazaoSocial"].fillna("").astype(str)
-
+    # garante esquema sempre
+    df = enforce_schema(df, year)
     return df
 
 
@@ -229,7 +246,6 @@ def apply_filters(
 
 # =========================================================
 # SAFE MULTISELECT WITH SELECT ALL / CLEAR
-# (sem quebrar session_state)
 # =========================================================
 def multiselect_with_buttons(
     label: str,
@@ -237,13 +253,7 @@ def multiselect_with_buttons(
     key: str,
     default: Optional[List[str]] = None,
     help_text: Optional[str] = None,
-    height_hint: str = "compact",
 ) -> List[str]:
-    """
-    Regras para não dar erro:
-    - Inicializa st.session_state[key] ANTES do widget
-    - Botões usam on_click (callback), então na rerun já vem setado antes do widget instanciar
-    """
     if default is None:
         default = []
 
@@ -262,7 +272,6 @@ def multiselect_with_buttons(
     with cols[1]:
         st.button("Limpar", on_click=_clear, key=f"{key}__btn_clear", use_container_width=True)
 
-    # widget
     return st.multiselect(
         label,
         options=options,
@@ -275,10 +284,16 @@ def multiselect_with_buttons(
 # KPI + CHARTS
 # =========================================================
 def kpis_for_mun(df: pd.DataFrame, mun_key: str) -> Tuple[float, int, int]:
-    d = df[df["MunicipioKey"] == mun_key]
-    total = float(d["Valor_num"].sum()) if not d.empty else 0.0
+    if df is None or df.empty:
+        return 0.0, 0, 0
+
+    if "MunicipioKey" not in df.columns:
+        df = enforce_schema(df, int(df["Ano"].iloc[0]) if "Ano" in df.columns and len(df) else 0)
+
+    d = df[df["MunicipioKey"] == mun_key] if "MunicipioKey" in df.columns else df.iloc[0:0]
+    total = float(d["Valor_num"].sum()) if ("Valor_num" in d.columns and not d.empty) else 0.0
     pagamentos = int(len(d)) if not d.empty else 0
-    entidades = int(d["CNPJ"].nunique()) if not d.empty else 0
+    entidades = int(d["CNPJ"].nunique()) if ("CNPJ" in d.columns and not d.empty) else 0
     return total, pagamentos, entidades
 
 
@@ -317,7 +332,6 @@ def chart_evolucao_mensal_por_municipio(df_filt: pd.DataFrame):
     )
 
     pivot = evo.pivot_table(index="Mes", columns="MunicipioLabel", values="Total", aggfunc="sum").fillna(0.0)
-    # ordem cronológica
     pivot.index = pd.to_datetime(pivot.index + "-01", errors="coerce")
     pivot = pivot.sort_index()
     pivot.index = pivot.index.strftime("%Y-%m")
@@ -326,15 +340,10 @@ def chart_evolucao_mensal_por_municipio(df_filt: pd.DataFrame):
 
 
 def chart_evolucao_mensal_todos_programas(df_filt: pd.DataFrame):
-    """Mesmo gráfico acima, mas com um título reforçando 'todos os programas'."""
     chart_evolucao_mensal_por_municipio(df_filt)
 
 
 def chart_evolucao_por_grupo(df_filt: pd.DataFrame, grupos_ordem: Optional[List[str]] = None):
-    """
-    Um gráfico (linha) por Grupo (ProgramaGrupo).
-    Linhas por município.
-    """
     if df_filt.empty:
         st.info("Sem dados para os filtros selecionados.")
         return
@@ -348,7 +357,6 @@ def chart_evolucao_por_grupo(df_filt: pd.DataFrame, grupos_ordem: Optional[List[
 
     grupos = sorted(base["ProgramaGrupo"].unique().tolist())
     if grupos_ordem:
-        # mantém os que existirem nessa ordem, depois o resto
         ordered = [g for g in grupos_ordem if g in grupos]
         rest = [g for g in grupos if g not in ordered]
         grupos = ordered + rest
@@ -372,9 +380,6 @@ def chart_evolucao_por_grupo(df_filt: pd.DataFrame, grupos_ordem: Optional[List[
 
 
 def chart_distribuicao_por_grupo_barras(df_filt: pd.DataFrame):
-    """
-    Mantém como você pediu: embaixo, barras por município
-    """
     if df_filt.empty:
         st.info("Sem dados para os filtros selecionados.")
         return
@@ -391,7 +396,6 @@ def chart_distribuicao_por_grupo_barras(df_filt: pd.DataFrame):
         .agg(Total=("Valor_num", "sum"))
     )
 
-    # Maués à esquerda, BVR à direita
     c1, c2 = st.columns(2, gap="large")
     for col, mun_key in [(c1, "MAUES"), (c2, "BOA_VISTA_DO_RAMOS")]:
         with col:
@@ -444,16 +448,13 @@ def comparativos_municipios_por_programa(df_filt: pd.DataFrame, top_n: int = 15)
         df_filt.groupby(["Programa", "MunicipioLabel"], as_index=False)
         .agg(Total=("Valor_num", "sum"))
     )
-    # pega os top programas (somando ambos municípios)
     tot = g.groupby("Programa", as_index=False).agg(TotalGeral=("Total", "sum")).sort_values("TotalGeral", ascending=False)
     keep = tot.head(top_n)["Programa"].tolist()
     g = g[g["Programa"].isin(keep)]
     pivot = g.pivot_table(index="Programa", columns="MunicipioLabel", values="Total", aggfunc="sum").fillna(0.0)
     pivot = pivot.reset_index()
-    # ordenar pelo total
     pivot["TotalGeral"] = pivot.drop(columns=["Programa"]).sum(axis=1)
     pivot = pivot.sort_values("TotalGeral", ascending=False).drop(columns=["TotalGeral"])
-    # formatar
     for c in pivot.columns:
         if c != "Programa":
             pivot[c] = pivot[c].apply(brl_int)
@@ -462,22 +463,15 @@ def comparativos_municipios_por_programa(df_filt: pd.DataFrame, top_n: int = 15)
 
 # =========================================================
 # REGULARIZAÇÃO / ALERTAS
-# (Nesta fase: lê um CSV se existir em /data)
-# Sugestão: você gerar em fnde.py um arquivo data/regularizacao_{ano}.csv
-# com colunas: MunicipioKey, RazaoSocial, CNPJ_formatado, Alerta
 # =========================================================
 def load_regularizacao(data_dir: Path, year: int) -> pd.DataFrame:
-    # tenta por ano
     p1 = data_dir / f"regularizacao_{year}.csv"
     if p1.exists():
-        df = pd.read_csv(p1, dtype=str, encoding="utf-8-sig")
-        return df
+        return pd.read_csv(p1, dtype=str, encoding="utf-8-sig")
 
-    # fallback genérico
     p2 = data_dir / "regularizacao.csv"
     if p2.exists():
-        df = pd.read_csv(p2, dtype=str, encoding="utf-8-sig")
-        return df
+        return pd.read_csv(p2, dtype=str, encoding="utf-8-sig")
 
     return pd.DataFrame()
 
@@ -488,15 +482,12 @@ def render_regularizacao(df_reg: pd.DataFrame):
     if df_reg.empty:
         st.info(
             "Ainda não existe arquivo de regularização.\n\n"
-            "👉 Próximo passo: no `fnde.py`, gerar `data/regularizacao_YYYY.csv` capturando as mensagens do site "
-            "(Dados cadastrais / Prestação de contas) e marcando pendências.\n\n"
+            "👉 Próximo passo: no `fnde.py`, gerar `data/regularizacao_YYYY.csv`.\n"
             "Quando esse arquivo existir, esta aba vai preencher automaticamente."
         )
         return
 
-    # normalizar municipio
     if "MunicipioKey" not in df_reg.columns:
-        # tenta inferir por nome
         for cand in ["Municipio", "Município"]:
             if cand in df_reg.columns:
                 df_reg["MunicipioKey"] = df_reg[cand].astype(str).apply(normalize_municipio_key)
@@ -506,14 +497,12 @@ def render_regularizacao(df_reg: pd.DataFrame):
 
     df_reg["MunicipioLabel"] = df_reg["MunicipioKey"].map(MUN_LABEL).fillna(df_reg.get("Municipio", ""))
 
-    # dividir Maués / BVR
     c1, c2 = st.columns(2, gap="large")
     for col, mun_key in [(c1, "MAUES"), (c2, "BOA_VISTA_DO_RAMOS")]:
         with col:
             st.markdown(f"### {MUN_LABEL.get(mun_key, mun_key)}")
             d = df_reg[df_reg["MunicipioKey"] == mun_key].copy()
             st.metric("Qtde com alerta", br_int(len(d)))
-            # escolher colunas úteis
             cols = [c for c in ["RazaoSocial", "CNPJ_formatado", "Alerta", "Observacao", "Programa"] if c in d.columns]
             if not cols:
                 cols = d.columns.tolist()
@@ -546,6 +535,7 @@ with st.sidebar:
             st.cache_data.clear()
             st.success("Cache limpo. Recarregado na próxima execução.")
 
+
 # =========================================================
 # LOAD YEAR OPTIONS
 # =========================================================
@@ -556,6 +546,7 @@ if not years:
         f"👉 Verifique se existe: `{data_dir}` e se o `fnde.py` gerou os arquivos."
     )
     st.stop()
+
 
 # =========================================================
 # MAIN TITLE
@@ -593,17 +584,15 @@ with st.sidebar:
             present = df_year["MunicipioKey"].dropna().astype(str).unique().tolist()
             mun_opts = [k for k in MUN_KEYS_ORDER if k in present] or mun_opts
 
-        # multiselect com botões
-        mun_sel_keys = multiselect_with_buttons(
+        mun_sel_labels = multiselect_with_buttons(
             "Município",
             options=[MUN_LABEL.get(k, k) for k in mun_opts],
             key="mun_sel_labels",
             default=[MUN_LABEL.get(k, k) for k in mun_opts],
             help_text="Maués sempre aparece primeiro. Você pode filtrar 1 ou ambos.",
         )
-        # converter labels -> keys
         label_to_key = {MUN_LABEL.get(k, k): k for k in mun_opts}
-        mun_sel = [label_to_key.get(x, x) for x in mun_sel_keys]
+        mun_sel = [label_to_key.get(x, x) for x in mun_sel_labels]
 
         # grupos e programas
         grupo_opts = []
@@ -665,6 +654,7 @@ df_filt = apply_filters(
     escolas=escolas_sel,
     busca_escola=busca_escola,
 )
+df_filt = enforce_schema(df_filt, year) if not df_filt.empty else df_filt
 
 if df_year.empty:
     st.warning("Sem dados carregados para o ano selecionado.")
@@ -721,7 +711,11 @@ with tab2:
         if tp.empty:
             st.info("Sem dados para Top Programas com os filtros atuais.")
         else:
-            st.dataframe(tp[["Ano", "Mes", "MunicipioLabel", "Programa", "Total (R$)", "Pagamentos"]], use_container_width=True, hide_index=True)
+            st.dataframe(
+                tp[["Ano", "Mes", "MunicipioLabel", "Programa", "Total (R$)", "Pagamentos"]],
+                use_container_width=True,
+                hide_index=True,
+            )
 
     with c2:
         st.markdown("### Top Escolas / Entidades")
@@ -729,7 +723,11 @@ with tab2:
         if te.empty:
             st.info("Sem dados para Top Escolas com os filtros atuais.")
         else:
-            st.dataframe(te[["Ano", "Mes", "MunicipioLabel", "RazaoSocial", "CNPJ_formatado", "Total (R$)", "Pagamentos"]], use_container_width=True, hide_index=True)
+            st.dataframe(
+                te[["Ano", "Mes", "MunicipioLabel", "RazaoSocial", "CNPJ_formatado", "Total (R$)", "Pagamentos"]],
+                use_container_width=True,
+                hide_index=True,
+            )
 
 
 # =========================================================
@@ -765,29 +763,28 @@ with tab5:
     else:
         d = df_filt.copy()
 
-        # exibir tabela detalhada
         d["Valor (R$)"] = d["Valor_num"].apply(brl_int)
-        # colunas principais
+
         cols = [
             "Ano", "Mes", "MunicipioLabel",
             "ProgramaGrupo", "Programa", "Parcela", "OB",
             "RazaoSocial", "CNPJ_formatado",
             "Valor (R$)",
         ]
-        # data se tiver
         if "DataPgto" in d.columns:
             cols.insert(2, "DataPgto")
 
-        # ordenar por mês
         if "Mes_dt" in d.columns:
-            d = d.sort_values(["Ano", "Mes_dt", "MunicipioLabel", "ProgramaGrupo", "Programa", "RazaoSocial"], ascending=True)
+            d = d.sort_values(
+                ["Ano", "Mes_dt", "MunicipioLabel", "ProgramaGrupo", "Programa", "RazaoSocial"],
+                ascending=True,
+            )
 
         st.dataframe(d[cols], use_container_width=True, hide_index=True)
 
         st.divider()
         st.markdown("## Downloads (Excel) — leitura rápida mensal")
 
-        # 1) Consolidado mensal por município
         m1 = (
             d.groupby(["Ano", "Mes", "MunicipioLabel"], as_index=False)
             .agg(Total=("Valor_num", "sum"), Pagamentos=("Valor_num", "count"), Entidades=("CNPJ", "nunique"))
@@ -795,32 +792,38 @@ with tab5:
         m1["Total (R$)"] = m1["Total"].apply(brl_int)
         m1["Pagamentos"] = m1["Pagamentos"].apply(br_int)
         m1["Entidades"] = m1["Entidades"].apply(br_int)
-        m1 = m1[["Ano", "Mes", "MunicipioLabel", "Total (R$)", "Pagamentos", "Entidades"]].sort_values(["Ano", "Mes", "MunicipioLabel"])
+        m1 = m1[["Ano", "Mes", "MunicipioLabel", "Total (R$)", "Pagamentos", "Entidades"]].sort_values(
+            ["Ano", "Mes", "MunicipioLabel"]
+        )
 
-        # 2) Mensal por Grupo
         m2 = (
             d.groupby(["Ano", "Mes", "MunicipioLabel", "ProgramaGrupo"], as_index=False)
             .agg(Total=("Valor_num", "sum"))
         )
         m2["Total (R$)"] = m2["Total"].apply(brl_int)
-        m2 = m2[["Ano", "Mes", "MunicipioLabel", "ProgramaGrupo", "Total (R$)"]].sort_values(["Ano", "Mes", "MunicipioLabel", "Total (R$)"], ascending=[True, True, True, False])
+        m2 = m2[["Ano", "Mes", "MunicipioLabel", "ProgramaGrupo", "Total (R$)"]].sort_values(
+            ["Ano", "Mes", "MunicipioLabel", "Total (R$)"],
+            ascending=[True, True, True, False],
+        )
 
-        # 3) Mensal por Programa
         m3 = (
             d.groupby(["Ano", "Mes", "MunicipioLabel", "Programa"], as_index=False)
             .agg(Total=("Valor_num", "sum"))
         )
         m3["Total (R$)"] = m3["Total"].apply(brl_int)
-        m3 = m3[["Ano", "Mes", "MunicipioLabel", "Programa", "Total (R$)"]].sort_values(["Ano", "Mes", "MunicipioLabel", "Total (R$)"], ascending=[True, True, True, False])
+        m3 = m3[["Ano", "Mes", "MunicipioLabel", "Programa", "Total (R$)"]].sort_values(
+            ["Ano", "Mes", "MunicipioLabel", "Total (R$)"],
+            ascending=[True, True, True, False],
+        )
 
-        # 4) Escolas mensal (rápido)
         m4 = (
             d.groupby(["Ano", "Mes", "MunicipioLabel", "RazaoSocial", "CNPJ_formatado", "Programa"], as_index=False)
             .agg(Total=("Valor_num", "sum"))
         )
         m4["Total (R$)"] = m4["Total"].apply(brl_int)
         m4 = m4[["Ano", "Mes", "MunicipioLabel", "RazaoSocial", "CNPJ_formatado", "Programa", "Total (R$)"]].sort_values(
-            ["Ano", "Mes", "MunicipioLabel", "Total (R$)"], ascending=[True, True, True, False]
+            ["Ano", "Mes", "MunicipioLabel", "Total (R$)"],
+            ascending=[True, True, True, False],
         )
 
         xls = df_to_excel_bytes([
@@ -838,6 +841,7 @@ with tab5:
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             use_container_width=True,
         )
+
 st.caption(
     "Notas: leitura por mês (sem centavos). Maués sempre à esquerda e BVR à direita. "
     "Se aparecer 'Sem dados', revise filtros (principalmente Grupo/Programa/Escola)."
